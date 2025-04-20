@@ -24,14 +24,14 @@ Route::middleware(['auth'])->group(function () {
     // Product Route
     Route::resource('products', ProductController::class);
 
-    // Sale Route - Dipisahkan dari resource untuk menghindari konflik
+    // Sale Route
     Route::prefix('sales')->group(function () {
         Route::get('/', [SaleController::class, 'index'])->name('sales.index');
         Route::get('/create', [SaleController::class, 'create'])->name('sales.create');
         Route::post('/', [SaleController::class, 'store'])->name('sales.store');
         Route::get('/{id}/invoice', [SaleController::class, 'showInvoice'])->name('sales.invoice');
         Route::post('/confirm-sale', [SaleController::class, 'confirmationStore'])->name('sales.confirmationStore');
-        Route::get('/export', [SaleController::class, 'export'])->name('sales.export'); // Route export
+        Route::get('/export', [SaleController::class, 'export'])->name('sales.export');
     });
 
     // Member Route

@@ -8,23 +8,26 @@ use App\Models\Member;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use App\Exports\SalesExport;
 use Maatwebsite\Excel\Facades\Excel;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class SaleController extends Controller
 {
     public function index(Request $request)
     {
-        if($request->has('search') && $request->search !== null) {
+        $query = Sale::with('user')->latest();
+
+        if ($request->has('search') && $request->search !== null) {
             $search = strtolower($request->search);
-            $sales = Sale::whereRaw('LOWER(invoice_number) LIKE ?', ['%'.$search.'%'])
-                ->paginate(10)
-                ->appends($request->only('search'));
-        } else {
-            $sales = Sale::latest()->paginate(10);
+            $query->where(function ($q) use ($search) {
+                $q->whereRaw('LOWER(invoice_number) LIKE ?', ['%'.$search.'%'])
+                  ->orWhereRaw('LOWER(customer_name) LIKE ?', ['%'.$search.'%']);
+            });
         }
+
+        $sales = $query->paginate(10)->appends($request->only('search'));
 
         return view('sales.index', compact('sales'));
     }
@@ -35,7 +38,8 @@ class SaleController extends Controller
             ->orderByRaw('LOWER(name) ASC')
             ->get();
 
-        $members = Member::all();
+        $members = Member::select('id', 'name')->get(); // Optimasi: hanya ambil kolom yang diperlukan
+
         return view('sales.create', compact('products', 'members'));
     }
 
@@ -61,28 +65,50 @@ class SaleController extends Controller
             return $product->price * $filteredQuantities[$product->id];
         });
 
-        $members = Member::all();
+        $members = Member::select('id', 'name')->get();
 
         return view('sales.confirmation', compact('products', 'totalAmount', 'members', 'filteredQuantities'));
     }
 
     public function store(Request $request)
     {
+        // Validasi input
+        $request->validate([
+            'product_data' => 'required',
+            'total_pay' => 'required|numeric|min:0',
+            'total_amount' => 'required|numeric|min:0',
+            'member_id' => 'nullable|exists:members,id',
+            'total_point' => 'nullable|numeric|min:0',
+        ]);
+
         $productData = json_decode($request->input('product_data'), true);
+
+        if (!$productData || !is_array($productData)) {
+            Log::error('Invalid product data in sale creation', [
+                'product_data' => $request->input('product_data')
+            ]);
+            return redirect()->back()->with('error', 'Invalid product data.');
+        }
 
         foreach ($productData as $product) {
             $dbProduct = Product::find($product['id']);
             if (!$dbProduct || $dbProduct->quantity < $product['quantity']) {
+                Log::warning('Product unavailable or insufficient stock', [
+                    'product_id' => $product['id'],
+                    'requested_quantity' => $product['quantity'],
+                    'available_quantity' => $dbProduct->quantity ?? 0
+                ]);
                 return redirect()->back()->with('error', 'One or more products are no longer available or have insufficient stock.');
             }
         }
 
-        $totalPay = $request->input('total_pay');
-        $totalAmount = $request->input('total_amount');
+        $totalPay = (float) $request->input('total_pay');
+        $totalAmount = (float) $request->input('total_amount');
         $invoiceNumber = 'INV-' . strtoupper(Str::random(8));
 
         $memberName = $invoiceNumber;
         $memberId = null;
+        $member = null;
 
         if (!empty($request->member_id)) {
             $member = Member::find($request->member_id);
@@ -98,14 +124,27 @@ class SaleController extends Controller
         }
 
         if ($request->use_point == 1) {
-            $totalAmount = $totalAmount - $request->total_point;
-            Member::where('id', $memberId)->decrement('points', $request->total_point);
+            $totalPoint = (float) $request->total_point;
+            $totalAmount = $totalAmount - $totalPoint;
+            if ($member) {
+                Member::where('id', $memberId)->decrement('points', $totalPoint);
+                Log::info('Points deducted from member', [
+                    'member_id' => $memberId,
+                    'points_deducted' => $totalPoint
+                ]);
+            }
         } else {
-            $addPoint = $totalAmount / 750;
-            Member::where('id', $memberId)->increment('points', $addPoint);
+            $addPoint = floor($totalAmount / 750);
+            if ($member && $addPoint > 0) {
+                Member::where('id', $memberId)->increment('points', $addPoint);
+                Log::info('Points added to member', [
+                    'member_id' => $memberId,
+                    'points_added' => $addPoint
+                ]);
+            }
         }
 
-        Sale::create([
+        $sale = Sale::create([
             'id' => Str::uuid(),
             'invoice_number' => $invoiceNumber,
             'customer_name' => $memberName,
@@ -114,7 +153,7 @@ class SaleController extends Controller
             'product_data' => json_encode($productData),
             'total_amount' => $totalAmount,
             'payment_amount' => $totalPay,
-            'change_amount' => $totalPay - $totalAmount,
+            'change_amount' => max(0, $totalPay - $totalAmount), // Pastikan change_amount tidak negatif
             'notes' => '-',
         ]);
 
@@ -127,6 +166,9 @@ class SaleController extends Controller
                     Storage::disk('public')->delete($dbProduct->image);
                 }
                 $dbProduct->delete();
+                Log::info('Product deleted due to zero quantity', [
+                    'product_id' => $product['id']
+                ]);
             }
         }
 
@@ -137,14 +179,28 @@ class SaleController extends Controller
             $discount = 0;
         }
 
+        Log::info('Sale created successfully', [
+            'sale_id' => $sale->id,
+            'invoice_number' => $invoiceNumber,
+            'user_id' => Auth::user()->id
+        ]);
+
         return view('sales.invoice', compact('invoiceNumber', 'totalAmount', 'totalPay', 'memberName', 'memberId', 'productData', 'discount'));
     }
 
     public function showInvoice($id)
     {
-        $sale = Sale::where('id', $id)->firstOrFail();
+        $sale = Sale::with('member')->where('id', $id)->firstOrFail();
 
-        $productData = json_decode($sale->product_data, true);
+        $productData = $sale->product_data; // product_data sudah di-cast sebagai array di model Sale
+
+        if (!$productData || !is_array($productData)) {
+            Log::warning('Invalid product data in sale invoice', [
+                'sale_id' => $id,
+                'product_data' => $sale->product_data
+            ]);
+            $productData = [];
+        }
 
         $totalProductPrice = array_reduce($productData, function ($carry, $item) {
             return $carry + ($item['price'] * $item['quantity']);
@@ -165,20 +221,22 @@ class SaleController extends Controller
         ]);
     }
 
-    /**
-     * Export sales data to Excel
-     *
-     * @return BinaryFileResponse
-     */
-    public function export(): BinaryFileResponse
+    public function export(Request $request)
     {
-        // Authorization check
-        if (!in_array(Auth::user()->role, ['admin', 'manager', 'superadmin'])) {
-            abort(403, 'Unauthorized action.');
+        try {
+            Log::info('Exporting sales data', [
+                'user' => $request->user()->email,
+                'search' => $request->query('search')
+            ]);
+            $search = $request->query('search');
+            return Excel::download(new SalesExport($search), 'sales_' . now()->format('Y-m-d') . '.xlsx');
+        } catch (\Exception $e) {
+            Log::error('Failed to export sales', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'user' => $request->user()->email
+            ]);
+            return redirect()->back()->with('error', 'Failed to export sales data. Please try again or contact the administrator.');
         }
-
-        $fileName = 'sales_report_' . now()->format('Ymd_His') . '.xlsx';
-
-        return Excel::download(new SalesExport(), $fileName);
     }
 }

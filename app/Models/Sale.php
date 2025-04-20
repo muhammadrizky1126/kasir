@@ -37,4 +37,16 @@ class Sale extends Model
             }
         });
     }
+
+    // Relasi ke model User
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id', 'id');
+    }
+
+    // Relasi ke model Member
+    public function member()
+    {
+        return $this->belongsTo(Member::class, 'member_id', 'id');
+    }
 }

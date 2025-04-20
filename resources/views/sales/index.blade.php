@@ -47,11 +47,10 @@
                                         <a href="{{ route('sales.create') }}" class="btn btn-success ml-2 p-2">
                                             <i class="fas fa-plus"></i> Tambah Penjualan
                                         </a>
-                                    @else
-                                        <a href="{{ route('sales.export') }}" class="btn-export-excel ml-2" id="exportExcelBtn">
-                                            <i class="fas fa-file-excel"></i> Export Excel
-                                        </a>
                                     @endif
+                                    <a href="{{ route('sales.export') }}?search={{ request('search') }}" class="btn-export-excel ml-2" id="exportExcelBtn">
+                                        <i class="fas fa-file-excel"></i> Export Excel
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -74,7 +73,7 @@
                                     <td>{{ $item->customer_name }}</td>
                                     <td>{{ $item->created_at->format('d/m/Y H:i') }}</td>
                                     <td>{{ 'Rp ' . number_format($item->total_amount, 0, ',', '.') }}</td>
-                                    <td>{{ $item->user->name }}</td>
+                                    <td>{{ $item->user?->name ?? 'Tidak Diketahui' }}</td>
                                     <td class="text-center">
                                         <a href="{{ route('sales.invoice', $item->id) }}" class="btn btn-info">
                                             <i class="fas fa-download"></i> Unduh Bukti
@@ -99,7 +98,6 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Handle export Excel dengan feedback
     const exportBtn = document.getElementById('exportExcelBtn');
     if (exportBtn) {
         exportBtn.addEventListener('click', function(e) {
@@ -110,21 +108,33 @@ document.addEventListener('DOMContentLoaded', function () {
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyiapkan export...';
             this.classList.add('disabled');
 
+            // Ambil CSRF token dari meta tag
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+            if (!csrfToken) {
+                alert('CSRF token tidak ditemukan. Silakan refresh halaman dan coba lagi.');
+                this.innerHTML = originalHtml;
+                this.classList.remove('disabled');
+                return;
+            }
+
             // Lakukan request export
             fetch(this.href, {
+                method: 'GET',
                 headers: {
-                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Gagal melakukan export');
+                    return response.text().then(text => {
+                        throw new Error('Gagal melakukan export: ' + response.statusText + ' (' + response.status + ')\nDetail: ' + (text || 'No additional details'));
+                    });
                 }
                 return response.blob();
             })
             .then(blob => {
-                // Buat link download
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -134,11 +144,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 window.URL.revokeObjectURL(url);
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('Gagal melakukan export. Silakan coba lagi atau hubungi administrator.');
+                console.error('Export Error:', error);
+                alert(error.message);
             })
             .finally(() => {
-                // Kembalikan tombol ke state semula
                 this.innerHTML = originalHtml;
                 this.classList.remove('disabled');
             });

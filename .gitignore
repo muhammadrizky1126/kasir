@@ -1,0 +1,61 @@
+# File dan folder yang dihasilkan oleh Laravel
+/storage/*.key
+/storage/logs/*.log
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/framework/testing/*
+/storage/app/public/*
+!/storage/app/public/.gitkeep
+
+# File lingkungan
+.env
+.env.backup
+.env.*.backup
+
+# Dependensi vendor
+/vendor/
+
+# File sementara dan build
+/node_modules/
+/public/build/
+/public/hot
+/public/storage
+/public/js/
+/public/css/
+/public/mix-manifest.json
+
+# File yang dihasilkan oleh composer
+composer.phar
+composer.lock
+
+# File yang dihasilkan oleh npm/yarn
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# File konfigurasi IDE atau editor
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# File sementara sistem operasi
+.DS_Store
+Thumbs.db
+
+# File testing atau coverage
+/coverage/*
+.phpunit.result.cache
+
+# File dokumentasi atau build lainnya
+ Homestead.yaml
+ Homestead.json
+*.md
+
+# File backup atau sementara lainnya
+*.bak
+*.swp
+*.log
+*.tmp
+temp/
