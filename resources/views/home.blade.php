@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\DB;
                             <div class="col mr-2">
                                 <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
                                     Total Penjualan Bulan Ini</div>
-                                <div class="h5 mb-0 font-weight-bold text-gray-800">Rp {{ number_format($monthlySales, 0, ',', '.') }}</div>
+                                <div class="h5 mb-0 font-weight-bold text-gray-800">Rp </div>
                             </div>
                             <div class="col-auto">
                                 <i class="fas fa-calendar fa-2x text-gray-300"></i>
@@ -95,25 +95,7 @@ use Illuminate\Support\Facades\DB;
             </div>
 
             <!-- Recent Activity -->
-            <div class="col-xl-4 col-lg-5">
-                <div class="card shadow mb-4">
-                    <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                        <h6 class="m-0 font-weight-bold text-primary">Aktivitas Terakhir</h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="activity-list">
-                            <div class="activity-item mb-3">
-                                <div class="activity-date text-xs text-gray-500">19 Apr</div>
-                                <div class="activity-content pl-3">Transaksi baru #TRX-0012</div>
-                            </div>
-                            <div class="activity-item mb-3">
-                                <div class="activity-date text-xs text-gray-500">20 Apr</div>
-                                <div class="activity-content pl-3">Produk baru ditambahkan</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
         </div>
     </div>
 </div>

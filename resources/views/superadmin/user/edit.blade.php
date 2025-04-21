@@ -47,8 +47,8 @@
                                 <div class="form-group mb-4">
                                     <label for="role">Role</label>
                                     <select name="role" id="role" class="form-control" required>
-                                        <option value="superadmin" {{ old('role', $user->role) === 'superadmin' ? 'selected' : '' }}>Superadmin</option>
-                                        <option value="user" {{ old('role', $user->role) === 'user' ? 'selected' : '' }}>User</option>
+                                        <option value="superadmin" {{ old('role', $user->role) === 'superadmin' ? 'selected' : '' }}>admin</option>
+                                        <option value="user" {{ old('role', $user->role) === 'user' ? 'selected' : '' }}>karyawan</option>
                                     </select>
                                 </div>
 
