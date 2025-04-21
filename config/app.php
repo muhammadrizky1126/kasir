@@ -1,4 +1,4 @@
-<?php
+git pull origin BranchName<?php
 
 return [
 
