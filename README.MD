@@ -54,5 +54,4 @@ Welcome to the repository for laravel 12 - Cashier App
     ```bash
     php artisan serve
     ```
-## Contributors
-- **Muhammad Syams Ragibavi** - [GitHub](https://github.com/ragibavi)
+
